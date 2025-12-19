@@ -49,7 +49,7 @@ type BoundingBox =
 
     member this.HorizontalMargin() = this.Width - this.Right + this.Left - 1
     member this.VerticalMargin() = this.Width - this.Bottom + this.Top - 1
-    
+
     member this.CropBoundingBox dar =
         // If the aspect ratio is square, we don't need to do anything
         // If the aspect ratio is wide, we need to crop vertically to match the horizontal margin
@@ -58,7 +58,7 @@ type BoundingBox =
         // Therefore, we first need to expand the image canvas to accommodate the new bounding box
         // Then, we can crop to the new bounding box
         match dar with
-        | Square -> this
+        | Square -> this // TODO: make sure that we don't change the image aspect ratio here. We may need to pad/crop to a square.
         | Wide ->
             let dy = this.HorizontalMargin() / 2
 
@@ -79,7 +79,7 @@ type BoundingBox =
                 Right = this.Right + dx * 2
                 Top = 0
                 Bottom = this.Height - 1 }
-    
+
     member this.AsRectangle() =
         Rectangle(this.Left, this.Top, this.Right - this.Left + 1, this.Bottom - this.Top + 1)
 
@@ -96,13 +96,13 @@ and DesiredAspectRatio =
         if v * 1.1 > h then Wide
         elif h * 1.1 > v then Tall
         else Square
-        
+
     member this.ResizeWidth() =
         match this with
         | Square -> 512
         | Wide -> 512
         | Tall -> 0
-        
+
     member this.ResizeHeight() =
         match this with
         | Square -> 512
@@ -116,8 +116,9 @@ let processFile (inputPath: string) (outputPath: string) =
     let dar = DesiredAspectRatio.Create bb
     let cropBoundingBox = bb.CropBoundingBox dar
 
-    im.Mutate(fun ctx ->
-        ctx.Pad(cropBoundingBox.Width, cropBoundingBox.Height)
+    im.Mutate (fun ctx ->
+        ctx
+            .Pad(cropBoundingBox.Width, cropBoundingBox.Height)
             .Crop(cropBoundingBox.AsRectangle())
             .Resize(dar.ResizeWidth(), dar.ResizeHeight())
         |> ignore<IImageProcessingContext>)
@@ -128,6 +129,9 @@ let processFile (inputPath: string) (outputPath: string) =
 let main argv =
     argv
     |> Array.iter (fun path ->
-        let outputPath = Path.Combine(Path.GetDirectoryName(path), "StickerPlaner", Path.GetFileName(path))
+        let outputPath =
+            Path.Combine(Path.GetDirectoryName(path), "StickerPlaner", Path.GetFileName(path))
+
         processFile path outputPath)
+
     0
