@@ -75,7 +75,6 @@ type BoundingBox =
             // Ditto
             { this with
                 Width = this.Width + dx * 2
-                Left = this.Left
                 Right = this.Right + dx * 2
                 Top = 0
                 Bottom = this.Height - 1 }
