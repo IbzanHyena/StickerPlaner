@@ -18,8 +18,8 @@ let inline scan (im: Image<Rgba32>) outer inner ([<InlineIfLambda>] toXY) ([<Inl
 /// The bounding box contains the row and column indexes for the first occupied pixels in each direction. Therefore, it
 /// is important to retain these coordinates when cropping.
 type BoundingBox =
-    { Width: int
-      Height: int
+    { ImageWidth: int
+      ImageHeight: int
       Left: int
       Right: int
       Top: int
@@ -40,15 +40,17 @@ type BoundingBox =
         let bottom =
             scan im (seq { height - 1 .. -1 .. 0 }) (seq { width - 1 .. -1 .. 0 }) yx konst
 
-        { Width = width
-          Height = height
+        { ImageWidth = width
+          ImageHeight = height
           Left = left
           Right = right
           Top = top
           Bottom = bottom }
 
-    member this.HorizontalMargin() = this.Width - this.Right + this.Left - 1
-    member this.VerticalMargin() = this.Width - this.Bottom + this.Top - 1
+    member this.Width() = this.Right - this.Left + 1
+    member this.Height() = this.Bottom - this.Top + 1
+    member this.HorizontalMargin() = this.ImageWidth - this.Width()
+    member this.VerticalMargin() = this.ImageHeight - this.Height()
 
     member this.CropBoundingBox dar =
         // If the aspect ratio is square, we don't need to do anything
@@ -58,26 +60,36 @@ type BoundingBox =
         // Therefore, we first need to expand the image canvas to accommodate the new bounding box
         // Then, we can crop to the new bounding box
         match dar with
-        | Square -> this // TODO: make sure that we don't change the image aspect ratio here. We may need to pad/crop to a square.
+        | Square ->
+            let margin = (this.HorizontalMargin() + this.VerticalMargin()) / 2
+            let d = max (margin / 2) (this.ImageHeight / 20)
+
+            { this with
+                ImageWidth = this.ImageWidth + d * 2
+                ImageHeight = this.ImageHeight + d * 2
+                Left = 0
+                Right = this.ImageWidth - 1
+                Top = 0
+                Bottom = this.ImageHeight - 1 }
         | Wide ->
-            let dy = this.HorizontalMargin() / 2
+            let dy = max (this.HorizontalMargin() / 2) (this.ImageWidth / 20)
 
             // Since the padding will expand the canvas in both directions, the new top index should be
             // top - dy + dy = top. Similarly, the new bottom index should be bottom + dy + dy = bottom + 2 * dy.
             { this with
-                Height = this.Height + dy * 2
+                ImageHeight = this.ImageHeight + dy * 2
                 Bottom = this.Bottom + dy * 2
                 Left = 0
-                Right = this.Width - 1 }
+                Right = this.ImageWidth - 1 }
         | Tall ->
-            let dx = this.VerticalMargin() / 2
+            let dx = max (this.VerticalMargin() / 2) (this.ImageHeight / 20)
 
             // Ditto
             { this with
-                Width = this.Width + dx * 2
+                ImageWidth = this.ImageWidth + dx * 2
                 Right = this.Right + dx * 2
                 Top = 0
-                Bottom = this.Height - 1 }
+                Bottom = this.ImageHeight - 1 }
 
     member this.AsRectangle() =
         Rectangle(this.Left, this.Top, this.Right - this.Left + 1, this.Bottom - this.Top + 1)
@@ -87,13 +99,13 @@ and DesiredAspectRatio =
     | Wide
     | Tall
     static member Create(bbox: BoundingBox) =
-        let h = double <| bbox.HorizontalMargin()
-        let v = double <| bbox.VerticalMargin()
-        // If vertical margin is much greater than horizontal, then wide
-        // If horizontal margin is much greater than vertical, then wide
+        let h = double <| bbox.Height()
+        let v = double <| bbox.Width()
+        // If vertical size is much greater than horizontal, then tall
+        // If horizontal size is much greater than vertical, then wide
         // Otherwise, square
-        if v * 1.1 > h then Wide
-        elif h * 1.1 > v then Tall
+        if v > h * 1.1 then Tall
+        elif h > v * 1.1 then Wide
         else Square
 
     member this.ResizeWidth() =
@@ -117,7 +129,7 @@ let processFile (inputPath: string) (outputPath: string) =
 
     im.Mutate (fun ctx ->
         ctx
-            .Pad(cropBoundingBox.Width, cropBoundingBox.Height)
+            .Pad(cropBoundingBox.ImageWidth, cropBoundingBox.ImageHeight)
             .Crop(cropBoundingBox.AsRectangle())
             .Resize(dar.ResizeWidth(), dar.ResizeHeight())
         |> ignore<IImageProcessingContext>)
