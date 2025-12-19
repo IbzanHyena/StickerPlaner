@@ -62,17 +62,17 @@ type BoundingBox =
         match dar with
         | Square ->
             let margin = (this.HorizontalMargin() + this.VerticalMargin()) / 2
-            let d = max (margin / 2) (this.ImageHeight / 20)
+            let d = max (margin / 2) (this.Height() / 40)
 
             { this with
                 ImageWidth = this.ImageWidth + d * 2
                 ImageHeight = this.ImageHeight + d * 2
-                Left = 0
-                Right = this.ImageWidth - 1
-                Top = 0
-                Bottom = this.ImageHeight - 1 }
+                Left = d
+                Right = this.ImageWidth - 1 + d
+                Top = d
+                Bottom = this.ImageHeight - 1 + d }
         | Wide ->
-            let dy = max (this.HorizontalMargin() / 2) (this.ImageWidth / 20)
+            let dy = min (this.VerticalMargin() / 2) (this.Height() / 40)
 
             // Since the padding will expand the canvas in both directions, the new top index should be
             // top - dy + dy = top. Similarly, the new bottom index should be bottom + dy + dy = bottom + 2 * dy.
@@ -82,7 +82,7 @@ type BoundingBox =
                 Left = 0
                 Right = this.ImageWidth - 1 }
         | Tall ->
-            let dx = max (this.VerticalMargin() / 2) (this.ImageHeight / 20)
+            let dx = min (this.HorizontalMargin() / 2) (this.Width() / 40)
 
             // Ditto
             { this with
@@ -99,13 +99,13 @@ and DesiredAspectRatio =
     | Wide
     | Tall
     static member Create(bbox: BoundingBox) =
+        let w = double <| bbox.Width()
         let h = double <| bbox.Height()
-        let v = double <| bbox.Width()
         // If vertical size is much greater than horizontal, then tall
         // If horizontal size is much greater than vertical, then wide
         // Otherwise, square
-        if v > h * 1.1 then Tall
-        elif h > v * 1.1 then Wide
+        if h > w * 1.1 then Tall
+        elif w > h * 1.1 then Wide
         else Square
 
     member this.ResizeWidth() =
